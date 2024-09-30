@@ -1,0 +1,11 @@
+# Permissions
+p, readers, data1, read
+p, admins, data1, write
+
+# Group Memberships
+g, alice, admins
+g, bob, readers
+g, charlie, readers
+
+# Hierarchical Grouping
+g, admins, readers
