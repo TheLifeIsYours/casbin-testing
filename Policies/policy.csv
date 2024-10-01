@@ -1,11 +1,4 @@
-# Permissions
-p, readers, data1, read
-p, admins, data1, write
-
-# Group Memberships
-g, alice, admins
-g, bob, readers
-g, charlie, readers
-
-# Hierarchical Grouping
-g, admins, readers
+p,user_9a35d46b-501e-4f12-a478-ee9f4eb36393,company_ee605545-5859-4ce6-8ad5-94c1fe937bc3,admin,"","",""
+p,user_9a35d46b-501e-4f12-a478-ee9f4eb36393,employee_de76e248-3a4a-46cc-88ee-44e0df151cb3,admin,company_ee605545-5859-4ce6-8ad5-94c1fe937bc3,"",""
+p,user_85f6481e-0546-4dfb-a821-629da1d83cfd,company_ee605545-5859-4ce6-8ad5-94c1fe937bc3,employee,"","",""
+p,user_85f6481e-0546-4dfb-a821-629da1d83cfd,employee_a3dc85f8-9cf4-4b87-a11e-82bbc75d246a,employee,company_ee605545-5859-4ce6-8ad5-94c1fe937bc3,"",""

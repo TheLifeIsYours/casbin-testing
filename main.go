@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/casbin/casbin/v2"
 	xormadapter "github.com/casbin/xorm-adapter/v3"
+	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 	"log"
 )
@@ -12,239 +13,118 @@ import (
 func main() {
 	ClearPolicies()
 
-	casbin, err := NewCasbinEnforcer()
+	enforcer, err := NewCasbinEnforcer()
 	if err != nil {
-		panic(fmt.Sprintf("Failed to create casbin enforcer: %s", err))
+		panic(fmt.Sprintf("Failed to create enforcer: %s", err))
 	}
 
-	_, err = casbin.AddPolicy("general", "datacenter", "nuke")
-	if err != nil {
-		panic(fmt.Sprintf("Failed to add policy: %s", err))
-	}
+	adminAccountId := "user_" + uuid.New().String()
+	employeeAccountId := "user_" + uuid.New().String()
+	companyId := "company_" + uuid.New().String()
 
-	_, err = casbin.AddPolicy("general", "datacenter", "disarm")
-	if err != nil {
-		panic(fmt.Sprintf("Failed to add policy: %s", err))
-	}
+	AddEmployeeToCompany(enforcer, adminAccountId, companyId, "admin")
+	employeeEmployeeId := AddEmployeeToCompany(enforcer, employeeAccountId, companyId, "employee")
 
-	_, err = casbin.AddPolicy("cleaner", "datacenter", "radiation:cleaning")
-	if err != nil {
-		panic(fmt.Sprintf("Failed to add policy: %s", err))
-	}
-
-	_, err = casbin.AddPolicy("garbage", "datacenter", "trashcan:empty")
-	if err != nil {
-		panic(fmt.Sprintf("Failed to add policy: %s", err))
-	}
-
-	//Add Garbage to Cleaner
-	_, err = casbin.AddGroupingPolicy("cleaner", "garbage")
-	if err != nil {
-		panic(fmt.Sprintf("Failed to add policy: %s", err))
-	}
-
-	_, err = casbin.AddGroupingPolicy("admin", "garbage")
-	if err != nil {
-		panic(fmt.Sprintf("Failed to add policy: %s", err))
-	}
-
-	//Add General
-	_, err = casbin.AddRoleForUser("Alice", "general")
-	if err != nil {
-		panic(fmt.Sprintf("Failed to add admin role: %s", err))
-	}
-
-	//Add Cleaner
-	_, err = casbin.AddRoleForUser("Bob", "cleaner")
-	if err != nil {
-		panic(fmt.Sprintf("Failed to add admin role: %s", err))
-	}
-
-	//Check General permissions
-	fmt.Println("\nAlice Permissions")
-	nukePermission, err := CheckPermission("Alice", "datacenter", "nuke")
-	if err != nil {
-		panic(fmt.Sprintf("Failed to check permission: %s", err))
-	} else {
-		fmt.Printf("Nuke Permission: %t\n", *nukePermission)
-	}
-
-	disarmPermission, err := CheckPermission("Alice", "datacenter", "disarm")
-	if err != nil {
-		panic(fmt.Sprintf("Failed to check permission: %s", err))
-	} else {
-		fmt.Printf("Disarm Permission: %t\n", *disarmPermission)
-	}
-
-	cleanerPermission, err := CheckPermission("Alice", "datacenter", "radiation:cleaning")
-	if err != nil {
-		panic(fmt.Sprintf("Failed to check permission: %s", err))
-	} else {
-		fmt.Printf("Cleaner Permission: %t\n", *cleanerPermission)
-	}
-
-	trashcanPermission, err := CheckPermission("Alice", "datacenter", "trashcan:empty")
-	if err != nil {
-		panic(fmt.Sprintf("Failed to check permission: %s", err))
-	} else {
-		fmt.Printf("Trashcan Permission: %t\n", *trashcanPermission)
-	}
-
-	//Check Cleaner permissions
-	fmt.Println("\nBob Permissions")
-
-	nukePermission, err = CheckPermission("Bob", "datacenter", "nuke")
-	if err != nil {
-		panic(fmt.Sprintf("Failed to check permission: %s", err))
-	} else {
-		fmt.Printf("Nuke Permission: %t\n", *nukePermission)
-	}
-
-	disarmPermission, err = CheckPermission("Bob", "datacenter", "disarm")
-	if err != nil {
-		panic(fmt.Sprintf("Failed to check permission: %s", err))
-	} else {
-		fmt.Printf("Disarm Permission: %t\n", *disarmPermission)
-	}
-
-	cleanerPermission, err = CheckPermission("Bob", "datacenter", "radiation:cleaning")
-	if err != nil {
-		panic(fmt.Sprintf("Failed to check permission: %s", err))
-	} else {
-		fmt.Printf("Cleaner Permission: %t\n", *cleanerPermission)
-	}
-
-	trashcanPermission, err = CheckPermission("Bob", "datacenter", "trashcan:empty")
-	if err != nil {
-		panic(fmt.Sprintf("Failed to check permission: %s", err))
-	} else {
-		fmt.Printf("Trashcan Permission: %t\n", *trashcanPermission)
-	}
-
-}
-
-func CreateWorklogPolicies() {
-	e, err := NewCasbinEnforcer()
-	if err != nil {
-		panic(fmt.Sprintf("Failed to create casbin enforcer: %s", err))
-	}
-
-	//Worklog Policies
-	var policies = [][]string{
-		{"workLog:read_write", "workLog:read"},
-		{"workLog:read_write", "workLog:write"},
-		{"admin", "workLog:read_write"},
-	}
-
-	_, err = e.AddPolicies(policies)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to add policies: %s", err))
-	}
-}
-
-func GiveAdminWorkLogPermissions() {
-	e, err := NewCasbinEnforcer()
-	if err != nil {
-		panic(fmt.Sprintf("Failed to create casbin enforcer: %s", err))
-	}
-
-	_, err = e.AddRoleForUser("Alice", "admin")
-	if err != nil {
-		panic(fmt.Sprintf("Failed to add admin role: %s", err))
-	}
-}
-
-func AddWorkLog(employeeId string, workLogId string) error {
-	e, err := NewCasbinEnforcer()
-	if err != nil {
-		return err
-	}
-
-	_, err = e.AddPolicy(workLogId, "workLog:read_write")
-	if err != nil {
-		return err
-	}
-
-	if _, err := e.AddPolicy(employeeId, workLogId); err != nil {
-		return err
-	}
-
-	if err = e.SavePolicy(); err != nil {
-		panic(fmt.Sprintf("Failed to save policy: %s", err))
-	}
-
-	return nil
-}
-
-func CheckPermission(sub string, obj string, act string) (*bool, error) {
-	e, err := NewCasbinEnforcer()
-	if err != nil {
-		return nil, err
-	}
-
-	// Check the permission.
-	enforcer, err := e.Enforce(sub, obj, act)
+	//Enforce admin rights in company
+	authorized, err := enforcer.Enforce(adminAccountId, companyId, "admin") // Should be true
 	if err != nil {
 		panic(fmt.Sprintf("Failed to enforce policy: %s", err))
 	}
 
-	return &enforcer, nil
+	if !authorized {
+		fmt.Println("Admin user is not authorized")
+	} else {
+		fmt.Println("Admin user is authorized")
+	}
+
+	//Enforce employee rights in company
+	fmt.Println("wtf braaaaah")
+	authorized, err1 := enforcer.Enforce(employeeAccountId, companyId, "admin") // Should be false
+	fmt.Println("wake me up when september ends wake me up inside call my name and wake me up when september ends")
+	if err1 != nil {
+		panic(fmt.Sprintf("Failed to enforce policy: %s", err))
+	}
+
+	if !authorized {
+		fmt.Println("Employee user is not authorized as admin")
+	} else {
+		fmt.Println("Employee user is authorized as admin")
+	}
+
+	//Enforce employee rights in company
+	authorized, err = enforcer.Enforce(employeeAccountId, companyId, "employee")
+	if err != nil {
+		panic(fmt.Sprintf("Failed to enforce policy: %s", err))
+	}
+
+	if !authorized {
+		fmt.Println("Employee user is not authorized as employee")
+	} else {
+		fmt.Println("Employee user is authorized as employee")
+	}
+
+	fmt.Println("--- Enforce Employee Role (WorkLog check) ---")
+
+	// new enforcer for checking employee permissions
+	type EnforceContext struct {
+		RType string
+		PType string
+		EType string
+		MType string
+	}
+	//employeeEnforceContext := EnforceContext{"r2", "p2", "", "m2"}
+	employeeEnforceContext := casbin.NewEnforceContext("2")
+	//employeeEnforceContext.EType = "e2"
+
+	//Enforce employee rights in company
+	authorized, err = enforcer.Enforce(employeeEnforceContext, employeeAccountId, employeeEmployeeId, "employee", companyId)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to enforce policy: %s", err))
+	}
+
+	if !authorized {
+		fmt.Println("Employee user is not authorized")
+	} else {
+		fmt.Println("Employee user is authorized")
+	}
+	//Enforce employee rights in company should be unauthorized
+	authorized, err = enforcer.Enforce(employeeEnforceContext, employeeAccountId, uuid.New().String(), "employee", companyId)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to enforce policy: %s", err))
+	}
+
+	if !authorized {
+		fmt.Println("Employee user is not authorized")
+	} else {
+		fmt.Println("Employee user is authorized")
+	}
 }
 
-func AddAdminRole(sub string) error {
-	e, err := NewCasbinEnforcer()
+func AddEmployeeToCompany(enforcer *casbin.Enforcer, accountId string, companyId string, role string) string {
+	employeeId := "employee_" + uuid.New().String()
+
+	// Your account connection to company, with a role
+	_, err := enforcer.AddPolicy(accountId, companyId, role)
 	if err != nil {
-		return err
+		panic(fmt.Sprintf("Failed to add policy: %s", err))
 	}
 
-	if _, err := e.AddRoleForUser(sub, "admin"); err != nil {
-		return err
+	// Your account connection to employee, in a domain "company"
+	_, err = enforcer.AddNamedPolicy("p2", accountId, employeeId, role, companyId)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to add policy: %s", err))
 	}
 
-	if err = e.SavePolicy(); err != nil {
+	if err = enforcer.SavePolicy(); err != nil {
 		panic(fmt.Sprintf("Failed to save policy: %s", err))
 	}
 
-	return nil
-}
-
-func AddRolePolicy(role string, obj string, act string) error {
-	e, err := NewCasbinEnforcer()
-	if err != nil {
-		return err
-	}
-
-	if _, err := e.AddPolicy(role, obj, act); err != nil {
-		return err
-	}
-
-	if err = e.SavePolicy(); err != nil {
-		panic(fmt.Sprintf("Failed to save policy: %s", err))
-	}
-
-	return nil
-}
-
-func AddPolicy(sub string, obj string) error {
-	e, err := NewCasbinEnforcer()
-	if err != nil {
-		return err
-	}
-
-	if _, err := e.AddPolicy(sub, obj); err != nil {
-		return err
-	}
-
-	if err = e.SavePolicy(); err != nil {
-		panic(fmt.Sprintf("Failed to save policy: %s", err))
-	}
-
-	return nil
+	return employeeId
 }
 
 func ClearPolicies() {
 	// Define connection string
-	connStr := "user=ap_admin password=mysecretpassword dbname=casbin host=localhost sslmode=disable"
+	connStr := "user=casbin_user password=casbin_password dbname=casbin host=localhost sslmode=disable"
 
 	// Open a database connection
 	db, err := sql.Open("postgres", connStr)
@@ -259,7 +139,7 @@ func ClearPolicies() {
 	}(db)
 
 	// Delete the table
-	_, err = db.Exec("DROP TABLE IF EXISTS public.casbin_role")
+	_, err = db.Exec("DROP TABLE IF EXISTS public.casbin_rule")
 	if err != nil {
 		log.Fatalf("Error deleting table: %v", err)
 	}
@@ -268,7 +148,7 @@ func ClearPolicies() {
 }
 
 func NewCasbinEnforcer() (*casbin.Enforcer, error) {
-	a, err := xormadapter.NewAdapter("postgres", "user=ap_admin password=mysecretpassword host=127.0.0.1 port=5432 sslmode=disable") // Your driver and data source.
+	a, err := xormadapter.NewAdapter("postgres", "user=casbin_user password=casbin_password host=127.0.0.1 port=5432 sslmode=disable") // Your driver and data source.
 	if err != nil {
 		panic(err)
 	}
@@ -283,4 +163,38 @@ func NewCasbinEnforcer() (*casbin.Enforcer, error) {
 	}
 
 	return e, nil
+}
+
+// AuthorizeEmployeeInCompany checks if the account has the role in the company
+// Note: EmployeeId comes from parameters in requests
+func AuthorizeEmployeeInCompany(accountId string, employeeId string, companyId string, role string /*todo enum*/) (bool, error) {
+	enforcer, err := NewCasbinEnforcer() // todo dependency inject
+	if err != nil {
+		return false, err
+	}
+
+	enforcerContext := casbin.NewEnforceContext("2")
+
+	//Enforce employee rights in company
+	authorized, err := enforcer.Enforce(enforcerContext, accountId, employeeId, role, companyId)
+	if err != nil {
+		return false, err
+	}
+
+	return authorized, nil
+}
+
+// AuthorizeCompany checks if the account has the role in the company
+func AuthorizeCompany(accountId string, companyId string, role string /*todo enum*/) (bool, error) {
+	enforcer, err := NewCasbinEnforcer() // todo dependency inject
+	if err != nil {
+		return false, err
+	}
+
+	authorized, err := enforcer.Enforce(accountId, companyId, role)
+	if err != nil {
+		return false, err
+	}
+
+	return authorized, nil
 }
