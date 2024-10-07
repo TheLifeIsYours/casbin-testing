@@ -18,99 +18,62 @@ func main() {
 		panic(fmt.Sprintf("Failed to create enforcer: %s", err))
 	}
 
-	adminAccountId := "user_" + uuid.New().String()
-	employeeAccountId := "user_" + uuid.New().String()
+	orgId := "organization_" + uuid.New().String()
 	companyId := "company_" + uuid.New().String()
+	adminAccountId := "admin_" + uuid.New().String()
 
-	AddEmployeeToCompany(enforcer, adminAccountId, companyId, "admin")
-	employeeEmployeeId := AddEmployeeToCompany(enforcer, employeeAccountId, companyId, "employee")
+	AddEmployeeToCompany(enforcer, adminAccountId, companyId, "admin", orgId)
 
-	//Enforce admin rights in company
-	authorized, err := enforcer.Enforce(adminAccountId, companyId, "admin") // Should be true
+	//Auth user in organization
+	enforcerContext := casbin.NewEnforceContext("")
+	enforcerContext.RType = "r2"
+	enforcerContext.MType = "m2"
+
+	authorized, err := enforcer.Enforce(enforcerContext, adminAccountId, companyId, orgId)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to enforce policy: %s", err))
+	}
+	if !authorized {
+		fmt.Println("Admin user is not authorized to organization")
+	} else {
+		fmt.Println("Admin user is authorized to organization")
+	}
+
+	//Auth user in company - we don't have the orgId for this endpoint
+	enforcerContext.RType = "r3"
+	enforcerContext.MType = "m3"
+
+	authorized, err = enforcer.Enforce(enforcerContext, adminAccountId, companyId)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to enforce policy: %s", err))
 	}
 
 	if !authorized {
-		fmt.Println("Admin user is not authorized")
+		fmt.Println("Admin user is not authorized to company")
 	} else {
-		fmt.Println("Admin user is authorized")
+		fmt.Println("Admin user is authorized to company")
 	}
 
-	//Enforce employee rights in company
-	fmt.Println("wtf braaaaah")
-	authorized, err1 := enforcer.Enforce(employeeAccountId, companyId, "admin") // Should be false
-	fmt.Println("wake me up when september ends wake me up inside call my name and wake me up when september ends")
-	if err1 != nil {
-		panic(fmt.Sprintf("Failed to enforce policy: %s", err))
-	}
-
-	if !authorized {
-		fmt.Println("Employee user is not authorized as admin")
-	} else {
-		fmt.Println("Employee user is authorized as admin")
-	}
-
-	//Enforce employee rights in company
-	authorized, err = enforcer.Enforce(employeeAccountId, companyId, "employee")
+	//Auth Role admin in company
+	enforcerContext.RType = "r4"
+	enforcerContext.MType = "m4"
+	authorized, err = enforcer.Enforce(enforcerContext, adminAccountId, "admin", companyId)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to enforce policy: %s", err))
 	}
 
 	if !authorized {
-		fmt.Println("Employee user is not authorized as employee")
+		fmt.Println("Admin user is not authorized as admin in company")
 	} else {
-		fmt.Println("Employee user is authorized as employee")
-	}
-
-	fmt.Println("--- Enforce Employee Role (WorkLog check) ---")
-
-	// new enforcer for checking employee permissions
-	type EnforceContext struct {
-		RType string
-		PType string
-		EType string
-		MType string
-	}
-	//employeeEnforceContext := EnforceContext{"r2", "p2", "", "m2"}
-	employeeEnforceContext := casbin.NewEnforceContext("2")
-	//employeeEnforceContext.EType = "e2"
-
-	//Enforce employee rights in company
-	authorized, err = enforcer.Enforce(employeeEnforceContext, employeeAccountId, employeeEmployeeId, "employee", companyId)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to enforce policy: %s", err))
-	}
-
-	if !authorized {
-		fmt.Println("Employee user is not authorized")
-	} else {
-		fmt.Println("Employee user is authorized")
-	}
-	//Enforce employee rights in company should be unauthorized
-	authorized, err = enforcer.Enforce(employeeEnforceContext, employeeAccountId, uuid.New().String(), "employee", companyId)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to enforce policy: %s", err))
-	}
-
-	if !authorized {
-		fmt.Println("Employee user is not authorized")
-	} else {
-		fmt.Println("Employee user is authorized")
+		fmt.Println("Admin user is authorized as admin in company")
 	}
 }
 
-func AddEmployeeToCompany(enforcer *casbin.Enforcer, accountId string, companyId string, role string) string {
+func AddEmployeeToCompany(enforcer *casbin.Enforcer, accountId string, companyId string, role string, orgId string) string {
 	employeeId := "employee_" + uuid.New().String()
 
-	// Your account connection to company, with a role
-	_, err := enforcer.AddPolicy(accountId, companyId, role)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to add policy: %s", err))
-	}
-
 	// Your account connection to employee, in a domain "company"
-	_, err = enforcer.AddNamedPolicy("p2", accountId, employeeId, role, companyId)
+	_, err := enforcer.AddNamedPolicy("p", accountId, employeeId, role, companyId, orgId)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to add policy: %s", err))
 	}
@@ -163,38 +126,4 @@ func NewCasbinEnforcer() (*casbin.Enforcer, error) {
 	}
 
 	return e, nil
-}
-
-// AuthorizeEmployeeInCompany checks if the account has the role in the company
-// Note: EmployeeId comes from parameters in requests
-func AuthorizeEmployeeInCompany(accountId string, employeeId string, companyId string, role string /*todo enum*/) (bool, error) {
-	enforcer, err := NewCasbinEnforcer() // todo dependency inject
-	if err != nil {
-		return false, err
-	}
-
-	enforcerContext := casbin.NewEnforceContext("2")
-
-	//Enforce employee rights in company
-	authorized, err := enforcer.Enforce(enforcerContext, accountId, employeeId, role, companyId)
-	if err != nil {
-		return false, err
-	}
-
-	return authorized, nil
-}
-
-// AuthorizeCompany checks if the account has the role in the company
-func AuthorizeCompany(accountId string, companyId string, role string /*todo enum*/) (bool, error) {
-	enforcer, err := NewCasbinEnforcer() // todo dependency inject
-	if err != nil {
-		return false, err
-	}
-
-	authorized, err := enforcer.Enforce(accountId, companyId, role)
-	if err != nil {
-		return false, err
-	}
-
-	return authorized, nil
 }
